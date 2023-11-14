@@ -1,0 +1,5 @@
+*.pdf
+demo/
+*.jpg
+eng.traineddata
+
