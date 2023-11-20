@@ -6,11 +6,11 @@ USER user
 
 WORKDIR /home/user
 
-COPY ./Makefile ./codes.txt ./
+COPY ./Makefile ./eng.traineddata ./codes.txt ./
 
 COPY ./src ./src
 
-RUN wget https://github.com/tesseract-ocr/tessdata/blob/4767ea922bcc460e70b87b1d303ebdfed0897da8/eng.traineddata && make
+RUN make
 
 ENV TESSDATA_PREFIX=/home/user
 
