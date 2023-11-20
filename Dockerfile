@@ -6,7 +6,9 @@ USER user
 
 WORKDIR /home/user
 
-COPY ./Makefile ./search_pdf.cpp ./codes.txt ./
+COPY ./Makefile ./codes.txt ./
+
+COPY ./src ./src
 
 RUN make
 
