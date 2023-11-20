@@ -227,6 +227,7 @@ int main(int argc, char** argv)
         result["pageNumber"] = page_number;
 
         all_pages_result.push_back(result);
+        std::remove(raster_file_path.c_str());
     }
 
     std::cout << all_pages_result;
