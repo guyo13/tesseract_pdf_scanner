@@ -12,5 +12,7 @@ COPY ./src ./src
 
 RUN wget https://github.com/tesseract-ocr/tessdata/blob/4767ea922bcc460e70b87b1d303ebdfed0897da8/eng.traineddata && make
 
+ENV TESSDATA_PREFIX=/home/user
+
 CMD ["/bin/sh"]
 
