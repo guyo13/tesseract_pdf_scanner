@@ -70,15 +70,15 @@ int convert_pdf_page(
 
 void process_line(tesseract::ResultIterator& ri,
     tesseract::PageIteratorLevel level, std::vector<std::string>& codes,
-    json& result)
+    json& found_codes)
 {
     const char* scanned_line = ri.GetUTF8Text(level);
     for (const std::string& code : codes) {
         const char* found = strstr(scanned_line, code.c_str());
         if (found) {
             json bbox = json::object();
-            if (!result.contains(code)) {
-                result[code] = json::array();
+            if (!found_codes.contains(code)) {
+                found_codes[code] = json::array();
             }
             int x1, y1, x2, y2;
             ri.BoundingBox(level, &x1, &y1, &x2, &y2);
@@ -89,7 +89,7 @@ void process_line(tesseract::ResultIterator& ri,
             bbox["yStart"] = y1;
             bbox["yEnd"] = y2;
             bbox["text"] = std::string(scanned_line);
-            result[code].push_back(bbox);
+            found_codes[code].push_back(bbox);
         }
     }
     delete[] scanned_line;
@@ -106,9 +106,15 @@ void search_file(std::string& raster_file_path, std::vector<std::string>& codes,
     tesseract::ResultIterator* ri = api->GetIterator();
     tesseract::PageIteratorLevel level = tesseract::RIL_TEXTLINE;
     if (ri != 0) {
+        json found_codes = json::object();
+
         do {
-            process_line(*ri, level, codes, result);
+            process_line(*ri, level, codes, found_codes);
         } while (ri->Next(level));
+
+        if (!found_codes.empty()) {
+            result["found"] = found_codes;
+        }
     }
     delete api;
 }
@@ -188,6 +194,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    json all_pages_result = json::array();
     std::string pdf_file(argv[1]);
     int page_number_start, page_number_end, max_page;
     page_number_start = page_number_end = 1;
@@ -219,6 +226,8 @@ int main(int argc, char** argv)
         search_file(raster_file_path, codes, result);
         result["pageNumber"] = page_number;
 
-        std::cout << result;
+        all_pages_result.push_back(result);
     }
+
+    std::cout << all_pages_result;
 }
