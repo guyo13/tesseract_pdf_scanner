@@ -14,5 +14,7 @@ RUN make
 
 ENV TESSDATA_PREFIX=/home/user
 
+ENV OMP_THREAD_LIMIT=1
+
 CMD ["/bin/sh"]
 
