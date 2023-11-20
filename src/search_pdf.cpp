@@ -15,6 +15,21 @@
 
 using json = nlohmann::json;
 
+const char* DOCUMENT_OPEN_FAIL = "Failed to open the document.";
+
+int get_pdf_page_count(std::string& pdf_file)
+{
+    std::unique_ptr<poppler::document> doc(
+        poppler::document::load_from_file(pdf_file));
+
+    if (!doc) {
+        std::cerr << DOCUMENT_OPEN_FAIL << std::endl;
+        return -1;
+    }
+
+    return doc->pages();
+}
+
 int convert_pdf_page(
     std::string& pdf_file, int page_number, std::string& outfile)
 {
@@ -22,15 +37,18 @@ int convert_pdf_page(
         poppler::document::load_from_file(pdf_file));
 
     if (!doc) {
-        std::cerr << "Failed to open the document." << std::endl;
+        std::cerr << DOCUMENT_OPEN_FAIL << std::endl;
         return 0;
     }
+
     int numPages = doc->pages();
+
     if (page_number < 1 || page_number > numPages) {
         std::cerr << "Page number " << page_number << " is out of range (1-"
                   << numPages << ")" << std::endl;
         return 0;
     }
+
     poppler::page_renderer renderer;
     renderer.set_render_hint(poppler::page_renderer::antialiasing, true);
     renderer.set_render_hint(poppler::page_renderer::text_antialiasing, true);
@@ -95,6 +113,51 @@ void search_file(std::string& raster_file_path, std::vector<std::string>& codes,
     delete api;
 }
 
+int parse_page_range(char* range, int& start, int& stop, int max_page)
+{
+    std::string rng(range);
+    std::string delimiter = "-";
+    auto pos = rng.find(delimiter);
+
+    try {
+        if (pos == std::string::npos) {
+            int num = stoi(rng);
+            stop = start = num;
+        } else {
+            int n1 = stoi(rng.substr(0, pos));
+            int n2 = stoi(rng.substr(pos + 1));
+            start = n1;
+            stop = n2;
+        }
+
+        if (start <= 0 || start > max_page) {
+            std::cerr << "start position out of range" << std::endl;
+            return 0;
+        } else if (start > stop) {
+            std::cerr << "start position exceeds stop position" << std::endl;
+            return 0;
+        } else if (stop > max_page) {
+            std::cerr << "stop position out of range" << std::endl;
+            return 0;
+        }
+    } catch (std::invalid_argument const& ex) {
+        std::cerr << "std::invalid_argument::what(): " << ex.what() << '\n';
+        return 0;
+    } catch (std::out_of_range const& ex) {
+        std::cerr << "std::out_of_range::what(): " << ex.what() << '\n';
+        return 0;
+    }
+
+    return 1;
+}
+
+void generate_rendered_file_name(std::string& name, int page_number)
+{
+    name += "_";
+    name += std::to_string(page_number);
+    name += ".jpg";
+}
+
 int main(int argc, char** argv)
 {
     if (argc < 4) {
@@ -124,21 +187,38 @@ int main(int argc, char** argv)
         std::cerr << "Unable to open codes file for reading." << std::endl;
         return 1;
     }
-    // PDF
+
     std::string pdf_file(argv[1]);
-    // rendered doc
-    std::string raster_file_path(argv[1]);
-    int page_number = atoi(argv[3]);
-    raster_file_path += "_";
-    raster_file_path += std::to_string(page_number);
-    raster_file_path += ".jpg";
-    if (!convert_pdf_page(pdf_file, page_number, raster_file_path)) {
+    int page_number_start, page_number_end, max_page;
+    page_number_start = page_number_end = 1;
+    max_page = get_pdf_page_count(pdf_file);
+
+    if (max_page < 1
+        || !parse_page_range(
+            argv[3], page_number_start, page_number_end, max_page)) {
         return 1;
+    };
+
+    std::cerr << "Starting ocr on '" << argv[1] << "' pages "
+              << page_number_start << "-" << page_number_end << std::endl;
+
+    for (int page_number = page_number_start; page_number <= page_number_end;
+         page_number++) {
+        std::string raster_file_path(argv[1]);
+        json result = json::object();
+
+        generate_rendered_file_name(raster_file_path, page_number);
+
+        if (!convert_pdf_page(pdf_file, page_number, raster_file_path)) {
+            return 1;
+        }
+
+        std::cerr << "Processing " << raster_file_path << " (page number "
+                  << page_number << ")" << std::endl;
+
+        search_file(raster_file_path, codes, result);
+        result["pageNumber"] = page_number;
+
+        std::cout << result;
     }
-    std::cerr << "Starting OCR on " << raster_file_path << " Page number "
-              << page_number << std::endl;
-    json result = json::object();
-    result["pageNumber"] = page_number;
-    search_file(raster_file_path, codes, result);
-    std::cout << result;
 }
