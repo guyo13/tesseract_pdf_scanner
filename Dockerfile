@@ -1,5 +1,7 @@
 FROM guyor/amazon_linux_tesseract:latest
 
+ARG MAKE_TARGET=build
+
 RUN dnf install -y shadow-utils && adduser -m -s /bin/bash user
 
 USER user
@@ -10,7 +12,7 @@ COPY ./Makefile ./eng.traineddata ./codes.txt ./
 
 COPY ./src ./src
 
-RUN make
+RUN make $MAKE_TARGET
 
 ENV TESSDATA_PREFIX=/home/user
 
