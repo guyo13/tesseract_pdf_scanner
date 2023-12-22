@@ -1,9 +1,10 @@
-#include <string>
 #include <iostream>
+#include <memory>
 #include <poppler-document.h>
 #include <poppler-image.h>
 #include <poppler-page-renderer.h>
 #include <poppler-page.h>
+#include <string>
 
 int convert_pdf_page(
     std::string& pdf_file, int page_number, std::string& outfile)
