@@ -47,13 +47,13 @@ void search_file(std::string& raster_file_path, std::vector<std::string>& codes,
     json& result)
 {
     Pix* image = pixRead(raster_file_path.c_str());
-    tesseract::TessBaseAPI* api = new tesseract::TessBaseAPI();
-    api->Init(NULL, "eng");
+    auto* api = new tesseract::TessBaseAPI();
+    api->Init(nullptr, "eng");
     api->SetImage(image);
-    api->Recognize(0);
+    api->Recognize(nullptr);
     tesseract::ResultIterator* ri = api->GetIterator();
     tesseract::PageIteratorLevel level = tesseract::RIL_TEXTLINE;
-    if (ri != 0) {
+    if (ri != nullptr) {
         json found_codes = json::object();
 
         do {
@@ -121,7 +121,7 @@ int main(int argc, char** argv)
         || !parse_page_range(
             argv[3], page_number_start, page_number_end, max_page)) {
         return 1;
-    };
+    }
 
     std::cerr << "Starting ocr on '" << argv[1] << "' pages "
               << page_number_start << "-" << page_number_end << std::endl;
