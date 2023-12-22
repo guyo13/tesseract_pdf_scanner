@@ -1,6 +1,7 @@
 #include "thirdparty/json.hpp"
 #include "pdf.hpp"
 #include "util.h"
+#include <poppler-document.h>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -105,16 +106,20 @@ int main(int argc, char** argv)
 
     json all_pages_result = json::array();
     std::string pdf_file(argv[1]);
+    std::unique_ptr<poppler::document> doc(
+        (poppler::document::load_from_file(pdf_file)));
+    if (!doc) {
+        std::cerr << DOCUMENT_OPEN_FAIL << std::endl;
+        return 1;
+    }
+
     int page_number_start, page_number_end, max_page;
     page_number_start = page_number_end = 1;
-    max_page = get_pdf_page_count(pdf_file);
+    max_page = doc->pages();
 
     if (max_page < 1
         || !parse_page_range(
             argv[3], page_number_start, page_number_end, max_page)) {
-        if (max_page == -1) {
-            std::cerr << DOCUMENT_OPEN_FAIL << std::endl;
-        }
         return 1;
     };
 

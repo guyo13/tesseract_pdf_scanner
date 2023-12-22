@@ -5,18 +5,6 @@
 #include <poppler-page-renderer.h>
 #include <poppler-page.h>
 
-int get_pdf_page_count(std::string& pdf_file)
-{
-    std::unique_ptr<poppler::document> doc(
-        (poppler::document::load_from_file(pdf_file)));
-
-    if (!doc) {
-        return -1;
-    }
-
-    return doc->pages();
-}
-
 int convert_pdf_page(
     std::string& pdf_file, int page_number, std::string& outfile)
 {
