@@ -133,7 +133,7 @@ int main(int argc, char** argv)
 
         generate_rendered_file_name(raster_file_path, page_number);
 
-        if (!convert_pdf_page(pdf_file, page_number, raster_file_path)) {
+        if (!convert_pdf_page(doc, page_number, raster_file_path)) {
             return 1;
         }
 

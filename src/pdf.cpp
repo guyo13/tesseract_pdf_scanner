@@ -6,16 +6,9 @@
 #include <poppler-page.h>
 #include <string>
 
-int convert_pdf_page(
-    std::string& pdf_file, int page_number, std::string& outfile)
+int convert_pdf_page(std::unique_ptr<poppler::document>& doc, int page_number,
+    std::string& outfile)
 {
-    std::unique_ptr<poppler::document> doc(
-        (poppler::document::load_from_file(pdf_file)));
-
-    if (!doc) {
-        return 0;
-    }
-
     int numPages = doc->pages();
 
     if (page_number < 1 || page_number > numPages) {
