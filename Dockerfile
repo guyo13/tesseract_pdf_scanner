@@ -1,4 +1,4 @@
-FROM guyor/amazon_linux_tesseract:latest
+FROM public.ecr.aws/x9a3w9a8/amazon_linux_tesseract:latest
 
 ARG MAKE_TARGET=build
 

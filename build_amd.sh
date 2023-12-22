@@ -2,4 +2,4 @@
 
 docker build \
 -t $IMAGE_TAG \
---progress=plain . 2>&1
+--progress=plain --build-args="MAKE_TARGET=$MAKE_TARGET". 2>&1
