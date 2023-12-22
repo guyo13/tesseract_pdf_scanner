@@ -67,11 +67,38 @@ void search_file(std::string& raster_file_path, std::vector<std::string>& codes,
     delete api;
 }
 
-void generate_rendered_file_name(std::string& name, int page_number)
+void generate_rendered_file_name(
+    char* base_path, int page_number, std::string& name)
 {
+    name += base_path;
     name += "_";
     name += std::to_string(page_number);
     name += ".jpg";
+}
+
+int process_page(char* base_path, int page_number,
+    std::unique_ptr<poppler::document>& doc, json& all_pages_result,
+    std::vector<std::string>& codes)
+{
+    std::string raster_file_path;
+    json result = json::object();
+
+    generate_rendered_file_name(base_path, page_number, raster_file_path);
+
+    if (!convert_pdf_page(doc, page_number, raster_file_path)) {
+        return 0;
+    }
+
+    std::cerr << "Processing " << raster_file_path << " (page number "
+              << page_number << ")" << std::endl;
+
+    search_file(raster_file_path, codes, result);
+    result["pageNumber"] = page_number;
+
+    all_pages_result.push_back(result);
+    std::remove(raster_file_path.c_str());
+
+    return 1;
 }
 
 int main(int argc, char** argv)
@@ -128,23 +155,9 @@ int main(int argc, char** argv)
 
     for (int page_number = page_number_start; page_number <= page_number_end;
          page_number++) {
-        std::string raster_file_path(argv[1]);
-        json result = json::object();
-
-        generate_rendered_file_name(raster_file_path, page_number);
-
-        if (!convert_pdf_page(doc, page_number, raster_file_path)) {
+        if (!process_page(argv[1], page_number, doc, all_pages_result, codes)) {
             return 1;
         }
-
-        std::cerr << "Processing " << raster_file_path << " (page number "
-                  << page_number << ")" << std::endl;
-
-        search_file(raster_file_path, codes, result);
-        result["pageNumber"] = page_number;
-
-        all_pages_result.push_back(result);
-        std::remove(raster_file_path.c_str());
     }
 
     std::cout << all_pages_result;
