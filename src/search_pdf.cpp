@@ -1,13 +1,10 @@
 #include "thirdparty/json.hpp"
+#include "pdf.hpp"
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <leptonica/allheaders.h>
-#include <poppler-document.h>
-#include <poppler-image.h>
-#include <poppler-page-renderer.h>
-#include <poppler-page.h>
 #include <stdlib.h>
 #include <string>
 #include <tesseract/baseapi.h>
@@ -16,57 +13,6 @@
 using json = nlohmann::json;
 
 const char* DOCUMENT_OPEN_FAIL = "Failed to open the document.";
-
-int get_pdf_page_count(std::string& pdf_file)
-{
-    std::unique_ptr<poppler::document> doc(
-        poppler::document::load_from_file(pdf_file));
-
-    if (!doc) {
-        std::cerr << DOCUMENT_OPEN_FAIL << std::endl;
-        return -1;
-    }
-
-    return doc->pages();
-}
-
-int convert_pdf_page(
-    std::string& pdf_file, int page_number, std::string& outfile)
-{
-    std::unique_ptr<poppler::document> doc(
-        poppler::document::load_from_file(pdf_file));
-
-    if (!doc) {
-        std::cerr << DOCUMENT_OPEN_FAIL << std::endl;
-        return 0;
-    }
-
-    int numPages = doc->pages();
-
-    if (page_number < 1 || page_number > numPages) {
-        std::cerr << "Page number " << page_number << " is out of range (1-"
-                  << numPages << ")" << std::endl;
-        return 0;
-    }
-
-    poppler::page_renderer renderer;
-    renderer.set_render_hint(poppler::page_renderer::antialiasing, true);
-    renderer.set_render_hint(poppler::page_renderer::text_antialiasing, true);
-
-    // Poppler pages start at index 0
-    std::unique_ptr<poppler::page> page(doc->create_page(page_number - 1));
-    poppler::image image
-        = renderer.render_page(page.get(), 300, 300); // 300 DPI
-
-    if (image.is_valid()) {
-        image.save(outfile, "jpeg");
-    } else {
-        std::cerr << "Failed to render page " << page_number << std::endl;
-        return 0;
-    }
-
-    return 1;
-}
 
 void process_line(tesseract::ResultIterator& ri,
     tesseract::PageIteratorLevel level, std::vector<std::string>& codes,
@@ -203,6 +149,9 @@ int main(int argc, char** argv)
     if (max_page < 1
         || !parse_page_range(
             argv[3], page_number_start, page_number_end, max_page)) {
+        if (max_page == -1) {
+            std::cerr << DOCUMENT_OPEN_FAIL << std::endl;
+        }
         return 1;
     };
 

@@ -12,7 +12,7 @@ COPY ./Makefile ./eng.traineddata ./codes.txt ./
 
 COPY ./src ./src
 
-RUN make $MAKE_TARGET
+RUN make $MAKE_TARGET && make clean-objs
 
 ENV TESSDATA_PREFIX=/home/user
 
