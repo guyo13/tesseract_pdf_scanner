@@ -1,6 +1,7 @@
 *.pdf
-demo/
 *.jpg
-search_pdf
-.idea
 *.o
+search_pdf
+demo/
+ocr-pipeline/target
+.idea
