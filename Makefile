@@ -12,4 +12,4 @@ clean: clean-objs
 clean-objs:
 	rm *.o
 format:
-	clang-format -style=file -i ./src/*.[c,h,cpp,hpp]
+	clang-format -style=file -i ./src/*.h ./src/*.cpp ./src/*.hpp
