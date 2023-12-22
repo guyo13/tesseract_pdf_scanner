@@ -17,16 +17,16 @@ using json = nlohmann::json;
 const char* DOCUMENT_OPEN_FAIL = "Failed to open the document.";
 
 void process_line(tesseract::ResultIterator& ri,
-    tesseract::PageIteratorLevel level, std::vector<std::string>& codes,
-    json& found_codes)
+    tesseract::PageIteratorLevel level, std::vector<std::string>& keywords,
+    json& found_keywords)
 {
     const char* scanned_line = ri.GetUTF8Text(level);
-    for (const std::string& code : codes) {
-        const char* found = strstr(scanned_line, code.c_str());
+    for (const std::string& keyword : keywords) {
+        const char* found = strstr(scanned_line, keyword.c_str());
         if (found) {
             json bbox = json::object();
-            if (!found_codes.contains(code)) {
-                found_codes[code] = json::array();
+            if (!found_keywords.contains(keyword)) {
+                found_keywords[keyword] = json::array();
             }
             int x1, y1, x2, y2;
             ri.BoundingBox(level, &x1, &y1, &x2, &y2);
@@ -37,13 +37,13 @@ void process_line(tesseract::ResultIterator& ri,
             bbox["yStart"] = y1;
             bbox["yEnd"] = y2;
             bbox["text"] = std::string(scanned_line);
-            found_codes[code].push_back(bbox);
+            found_keywords[keyword].push_back(bbox);
         }
     }
     delete[] scanned_line;
 }
 
-void search_file(std::string& raster_file_path, std::vector<std::string>& codes,
+void search_file(std::string& raster_file_path, std::vector<std::string>& keywords,
     json& result)
 {
     Pix* image = pixRead(raster_file_path.c_str());
@@ -54,14 +54,14 @@ void search_file(std::string& raster_file_path, std::vector<std::string>& codes,
     tesseract::ResultIterator* ri = api->GetIterator();
     tesseract::PageIteratorLevel level = tesseract::RIL_TEXTLINE;
     if (ri != nullptr) {
-        json found_codes = json::object();
+        json found_keywords = json::object();
 
         do {
-            process_line(*ri, level, codes, found_codes);
+            process_line(*ri, level, keywords, found_keywords);
         } while (ri->Next(level));
 
-        if (!found_codes.empty()) {
-            result["found"] = found_codes;
+        if (!found_keywords.empty()) {
+            result["found"] = found_keywords;
         }
     }
     delete api;
@@ -78,7 +78,7 @@ void generate_rendered_file_name(
 
 int process_page(char* base_path, int page_number,
     std::unique_ptr<poppler::document>& doc, json& all_pages_result,
-    std::vector<std::string>& codes)
+    std::vector<std::string>& keywords)
 {
     std::string raster_file_path;
     json result = json::object();
@@ -92,7 +92,7 @@ int process_page(char* base_path, int page_number,
     std::cerr << "Processing " << raster_file_path << " (page number "
               << page_number << ")" << std::endl;
 
-    search_file(raster_file_path, codes, result);
+    search_file(raster_file_path, keywords, result);
     result["pageNumber"] = page_number;
 
     all_pages_result.push_back(result);
@@ -101,33 +101,40 @@ int process_page(char* base_path, int page_number,
     return 1;
 }
 
+int load_keywords(char* keyword_file, std::vector<std::string>& keywords) {
+    std::filesystem::path file_path(keyword_file);
+    std::ifstream file(file_path);
+
+    if (file.is_open()) {
+        std::string line;
+        while (std::getline(file, line)) {
+            keywords.push_back(line);
+        }
+        file.close();
+        return 1;
+    } else {
+        std::cerr << "Unable to open keywords file for reading." << std::endl;
+        return 0;
+    }
+}
+
 int main(int argc, char** argv)
 {
     if (argc < 4) {
         std::cerr << "Usage: " << argv[0]
-                  << " <path to file> <path to codes> <page num>" << std::endl;
+                  << " <path to file> <path to keywords> <page num>" << std::endl;
         return 1;
     } else if (!std::filesystem::exists(argv[1])) {
         std::cerr << "Image File '" << argv[1] << "' does not exist."
                   << std::endl;
         return 1;
     } else if (!std::filesystem::exists(argv[2])) {
-        std::cerr << "Codes File '" << argv[2] << "' does not exist."
+        std::cerr << "Keywords File '" << argv[2] << "' does not exist."
                   << std::endl;
         return 1;
     }
-    std::filesystem::path filePath(argv[2]);
-    std::vector<std::string> codes;
-    std::ifstream file(filePath);
-
-    if (file.is_open()) {
-        std::string line;
-        while (std::getline(file, line)) {
-            codes.push_back(line);
-        }
-        file.close();
-    } else {
-        std::cerr << "Unable to open codes file for reading." << std::endl;
+    std::vector<std::string> keywords;
+    if (!load_keywords(argv[2], keywords)) {
         return 1;
     }
 
@@ -155,7 +162,7 @@ int main(int argc, char** argv)
 
     for (int page_number = page_number_start; page_number <= page_number_end;
          page_number++) {
-        if (!process_page(argv[1], page_number, doc, all_pages_result, codes)) {
+        if (!process_page(argv[1], page_number, doc, all_pages_result, keywords)) {
             return 1;
         }
     }
