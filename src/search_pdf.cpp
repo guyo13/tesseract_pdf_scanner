@@ -1,13 +1,13 @@
-#include "thirdparty/json.hpp"
 #include "pdf.hpp"
+#include "thirdparty/json.hpp"
 #include "util.h"
-#include <poppler-document.h>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <leptonica/allheaders.h>
-#include <stdlib.h>
+#include <poppler-document.h>
 #include <string>
 #include <tesseract/baseapi.h>
 #include <vector>
