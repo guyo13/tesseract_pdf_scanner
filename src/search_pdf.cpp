@@ -43,8 +43,8 @@ void process_line(tesseract::ResultIterator& ri,
     delete[] scanned_line;
 }
 
-void search_file(std::string& raster_file_path, std::vector<std::string>& keywords,
-    json& result)
+void search_file(std::string& raster_file_path,
+    std::vector<std::string>& keywords, json& result)
 {
     Pix* image = pixRead(raster_file_path.c_str());
     auto* api = new tesseract::TessBaseAPI();
@@ -101,7 +101,8 @@ int process_page(char* base_path, int page_number,
     return 1;
 }
 
-int load_keywords(char* keyword_file, std::vector<std::string>& keywords) {
+int load_keywords(char* keyword_file, std::vector<std::string>& keywords)
+{
     std::filesystem::path file_path(keyword_file);
     std::ifstream file(file_path);
 
@@ -122,7 +123,8 @@ int main(int argc, char** argv)
 {
     if (argc < 4) {
         std::cerr << "Usage: " << argv[0]
-                  << " <path to file> <path to keywords> <page num>" << std::endl;
+                  << " <path to file> <path to keywords> <page num>"
+                  << std::endl;
         return 1;
     } else if (!std::filesystem::exists(argv[1])) {
         std::cerr << "Image File '" << argv[1] << "' does not exist."
@@ -162,7 +164,8 @@ int main(int argc, char** argv)
 
     for (int page_number = page_number_start; page_number <= page_number_end;
          page_number++) {
-        if (!process_page(argv[1], page_number, doc, all_pages_result, keywords)) {
+        if (!process_page(
+                argv[1], page_number, doc, all_pages_result, keywords)) {
             return 1;
         }
     }
