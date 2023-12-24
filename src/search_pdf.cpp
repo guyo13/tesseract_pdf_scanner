@@ -100,7 +100,7 @@ void process_line(tesseract::ResultIterator& ri,
 }
 
 void search_file(std::string& raster_file_path,
-    std::vector<std::string>& keywords, json& result)
+    std::vector<std::string>& keywords, json* result)
 {
     Pix* image = pixRead(raster_file_path.c_str());
     auto* api = new tesseract::TessBaseAPI();
@@ -117,7 +117,7 @@ void search_file(std::string& raster_file_path,
         } while (ri->Next(level));
 
         if (!found_keywords.empty()) {
-            result["found"] = found_keywords;
+            (*result)["found"] = found_keywords;
         }
     }
     delete api;
@@ -133,7 +133,7 @@ void generate_rendered_file_name(
 }
 
 int process_page(char* base_path, int page_number,
-    std::unique_ptr<poppler::document>& doc, json& result,
+    std::unique_ptr<poppler::document>& doc, json* result,
     std::vector<std::string>& keywords)
 {
     std::string raster_file_path;
@@ -148,7 +148,7 @@ int process_page(char* base_path, int page_number,
               << page_number << ")" << std::endl;
 
     search_file(raster_file_path, keywords, result);
-    result["pageNumber"] = page_number;
+    (*result)["pageNumber"] = page_number;
 
     std::remove(raster_file_path.c_str());
 
@@ -257,7 +257,7 @@ int main(int argc, char** argv)
     }
 
     std::cerr << "Using " << num_threads << " threads to process "
-              << page_number_end - page_number_start + 1 << " pages"
+              << page_number_end - page_number_start + 1 << " pages "
               << page_number_start << "-" << page_number_end << ". Doc is "
               << max_page << " pages long." << std::endl;
 
