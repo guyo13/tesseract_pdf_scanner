@@ -1,6 +1,7 @@
 #include "pdf.hpp"
 #include "thirdparty/json.hpp"
 #include "util.h"
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -8,6 +9,7 @@
 #include <iostream>
 #include <leptonica/allheaders.h>
 #include <poppler-document.h>
+#include <pthread.h>
 #include <string>
 #include <tesseract/baseapi.h>
 #include <vector>
@@ -15,6 +17,60 @@
 using json = nlohmann::json;
 
 const char* DOCUMENT_OPEN_FAIL = "Failed to open the document.";
+const char* KEYWORDS_OPEN_FAIL = "Unable to open keywords file for reading.";
+
+void panic()
+{
+    std::cerr << "Memory error\n";
+    exit(1);
+}
+
+typedef enum WorkerStatus { Running, Success, Fail } WorkerStatus;
+
+class WorkerArgs {
+public:
+    int worker_index;
+    int start_page;
+    int end_page;
+    json* result;
+    char* keywords_path;
+    char* pdf_path;
+    WorkerStatus* status;
+    WorkerArgs(int workerIndex, int page_number_start, int page_number_end,
+        int total_workers, json* result, char* keywordsPath, char* pdfPath,
+        WorkerStatus* status)
+        : worker_index(workerIndex)
+        , start_page(get_start_page_for_worker(
+              workerIndex, page_number_start, page_number_end, total_workers))
+        , end_page(get_end_page_for_worker(
+              workerIndex, page_number_start, page_number_end, total_workers))
+        , result(result)
+        , keywords_path(keywordsPath)
+        , pdf_path(pdfPath)
+        , status(status)
+    {
+    }
+    static int get_start_page_for_worker(
+        int worker_index, int start_offset, int end_offset, int total_workers);
+    static int get_end_page_for_worker(
+        int worker_index, int start_offset, int end_offset, int total_workers);
+};
+int WorkerArgs::get_start_page_for_worker(
+    int worker_index, int start_offset, int end_offset, int total_workers)
+{
+    int num_jobs_per_worker = (end_offset - start_offset + 1) / total_workers;
+    return start_offset + (num_jobs_per_worker * worker_index);
+}
+
+int WorkerArgs::get_end_page_for_worker(
+    int worker_index, int start_offset, int end_offset, int total_workers)
+{
+    int is_last = worker_index == total_workers - 1;
+    return is_last ? end_offset
+                   : (WorkerArgs::get_start_page_for_worker(worker_index + 1,
+                          start_offset, end_offset, total_workers)
+                       - 1);
+}
 
 void process_line(tesseract::ResultIterator& ri,
     tesseract::PageIteratorLevel level, std::vector<std::string>& keywords,
@@ -77,11 +133,10 @@ void generate_rendered_file_name(
 }
 
 int process_page(char* base_path, int page_number,
-    std::unique_ptr<poppler::document>& doc, json& all_pages_result,
+    std::unique_ptr<poppler::document>& doc, json& result,
     std::vector<std::string>& keywords)
 {
     std::string raster_file_path;
-    json result = json::object();
 
     generate_rendered_file_name(base_path, page_number, raster_file_path);
 
@@ -95,7 +150,6 @@ int process_page(char* base_path, int page_number,
     search_file(raster_file_path, keywords, result);
     result["pageNumber"] = page_number;
 
-    all_pages_result.push_back(result);
     std::remove(raster_file_path.c_str());
 
     return 1;
@@ -114,13 +168,54 @@ int load_keywords(char* keyword_file, std::vector<std::string>& keywords)
         file.close();
         return 1;
     } else {
-        std::cerr << "Unable to open keywords file for reading." << std::endl;
         return 0;
     }
 }
 
+void* worker_process_page(void* _args)
+{
+    auto* args = (WorkerArgs*)_args;
+    WorkerStatus* status = args->status;
+    std::vector<std::string> keywords;
+    std::string pdf_file(args->pdf_path);
+    std::unique_ptr<poppler::document> doc(
+        (poppler::document::load_from_file(pdf_file)));
+    std::cerr << "Worker: " << args->worker_index
+              << " started processing pages: " << args->start_page << "-"
+              << args->end_page << std::endl;
+
+    if (!load_keywords(args->keywords_path, keywords)) {
+        std::cerr << "Worker: " << args->worker_index << " "
+                  << KEYWORDS_OPEN_FAIL << std::endl;
+        *status = Fail;
+        delete args;
+        return nullptr;
+    } else if (!doc) {
+        std::cerr << "Worker: " << args->worker_index << " "
+                  << DOCUMENT_OPEN_FAIL << std::endl;
+        *status = Fail;
+        delete args;
+        return nullptr;
+    }
+
+    for (int page_number = args->start_page; page_number <= args->end_page;
+         page_number++) {
+        if (!process_page(
+                args->pdf_path, page_number, doc, args->result, keywords)) {
+            *status = Fail;
+            delete args;
+            return nullptr;
+        }
+    }
+
+    *status = Success;
+    delete args;
+    return nullptr;
+}
+
 int main(int argc, char** argv)
 {
+    long num_threads = 1;
     if (argc < 4) {
         std::cerr << "Usage: " << argv[0]
                   << " <path to file> <path to keywords> <page num>"
@@ -135,12 +230,14 @@ int main(int argc, char** argv)
                   << std::endl;
         return 1;
     }
-    std::vector<std::string> keywords;
-    if (!load_keywords(argv[2], keywords)) {
-        return 1;
+    if (argc >= 5) {
+        if (!(num_threads = strtol(argv[4], nullptr, 10))) {
+            std::cerr << "Invalid thread count '" << argv[4] << "'."
+                      << std::endl;
+            return 1;
+        }
     }
 
-    json all_pages_result = json::array();
     std::string pdf_file(argv[1]);
     std::unique_ptr<poppler::document> doc(
         (poppler::document::load_from_file(pdf_file)));
@@ -152,23 +249,33 @@ int main(int argc, char** argv)
     int page_number_start, page_number_end, max_page;
     page_number_start = page_number_end = 1;
     max_page = doc->pages();
-
+    num_threads = std::min(num_threads, (long)max_page);
     if (max_page < 1
         || !parse_page_range(
             argv[3], page_number_start, page_number_end, max_page)) {
         return 1;
     }
 
-    std::cerr << "Starting ocr on '" << argv[1] << "' pages "
-              << page_number_start << "-" << page_number_end << std::endl;
+    std::cerr << "Using " << num_threads << " threads to process "
+              << page_number_end - page_number_start + 1 << " pages"
+              << page_number_start << "-" << page_number_end << ". Doc is "
+              << max_page << " pages long." << std::endl;
 
-    for (int page_number = page_number_start; page_number <= page_number_end;
-         page_number++) {
-        if (!process_page(
-                argv[1], page_number, doc, all_pages_result, keywords)) {
-            return 1;
-        }
+    std::vector<pthread_t> threads;
+    auto* statuses = new WorkerStatus[num_threads];
+    json all_pages_result = json::array();
+    if (statuses == nullptr) {
+        panic();
+    }
+    for (int i = 0; i < num_threads; i++) {
+        all_pages_result.push_back(json::object());
+        auto* args = new WorkerArgs(i, page_number_start, page_number_end,
+            (int)num_threads, &all_pages_result.at(i), argv[2], argv[1],
+            &statuses[i]);
+
+        pthread_create(&threads[i], nullptr, worker_process_page, args);
     }
 
     std::cout << all_pages_result;
+    delete[] statuses;
 }
