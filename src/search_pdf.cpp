@@ -32,12 +32,12 @@ public:
     int worker_index;
     int start_page;
     int end_page;
-    json* result;
+    json& result;
     char* keywords_path;
     char* pdf_path;
     WorkerStatus* status;
     WorkerArgs(int workerIndex, int page_number_start, int page_number_end,
-        int total_workers, json* result, char* keywordsPath, char* pdfPath,
+        int total_workers, json& result, char* keywordsPath, char* pdfPath,
         WorkerStatus* status)
         : worker_index(workerIndex)
         , start_page(get_start_page_for_worker(
@@ -100,7 +100,7 @@ void process_line(tesseract::ResultIterator& ri,
 }
 
 void search_file(std::string& raster_file_path,
-    std::vector<std::string>& keywords, json* result)
+    std::vector<std::string>& keywords, json& result)
 {
     Pix* image = pixRead(raster_file_path.c_str());
     auto* api = new tesseract::TessBaseAPI();
@@ -117,7 +117,7 @@ void search_file(std::string& raster_file_path,
         } while (ri->Next(level));
 
         if (!found_keywords.empty()) {
-            (*result)["found"] = found_keywords;
+            result["found"] = found_keywords;
         }
     }
     delete api;
@@ -133,7 +133,7 @@ void generate_rendered_file_name(
 }
 
 int process_page(char* base_path, int page_number,
-    std::unique_ptr<poppler::document>& doc, json* result,
+    std::unique_ptr<poppler::document>& doc, json& result,
     std::vector<std::string>& keywords)
 {
     std::string raster_file_path;
@@ -148,7 +148,7 @@ int process_page(char* base_path, int page_number,
               << page_number << ")" << std::endl;
 
     search_file(raster_file_path, keywords, result);
-    (*result)["pageNumber"] = page_number;
+    result["pageNumber"] = page_number;
 
     std::remove(raster_file_path.c_str());
 
@@ -261,21 +261,45 @@ int main(int argc, char** argv)
               << page_number_start << "-" << page_number_end << ". Doc is "
               << max_page << " pages long." << std::endl;
 
-    std::vector<pthread_t> threads;
+    std::vector<pthread_t> threads(num_threads, 0);
+    std::vector<json> thread_results;
     auto* statuses = new WorkerStatus[num_threads];
-    json all_pages_result = json::array();
     if (statuses == nullptr) {
         panic();
     }
+
     for (int i = 0; i < num_threads; i++) {
-        all_pages_result.push_back(json::object());
+        thread_results.push_back(json::object());
+    }
+
+    for (int i = 0; i < num_threads; i++) {
         auto* args = new WorkerArgs(i, page_number_start, page_number_end,
-            (int)num_threads, &all_pages_result.at(i), argv[2], argv[1],
+            (int)num_threads, std::ref(thread_results[i]), argv[2], argv[1],
             &statuses[i]);
 
         pthread_create(&threads[i], nullptr, worker_process_page, args);
     }
 
+    for (auto tid : threads) {
+        pthread_join(tid, nullptr);
+    }
+
+    json all_pages_result = json::array();
+    for (const auto& res : thread_results) {
+        all_pages_result.push_back(res);
+    }
+
+    int exit_status = 0;
+    for (int i = 0; i < num_threads; i++) {
+        if (statuses[i] != Success) {
+            exit_status = 1;
+            std::cerr << "Worker number " << i << " was not successful."
+                      << std::endl;
+        }
+    }
+
     std::cout << all_pages_result;
     delete[] statuses;
+
+    return exit_status;
 }
