@@ -2,7 +2,7 @@
 #include <string>
 #include <cstring>
 
-static char* ALL_PAGES = "all";
+char const* ALL_PAGES = "all";
 
 int parse_page_range(char* range, int& start, int& stop, int max_page)
 {
