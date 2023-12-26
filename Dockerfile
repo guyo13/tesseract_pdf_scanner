@@ -8,7 +8,7 @@ USER user
 
 WORKDIR /home/user
 
-COPY ./Makefile ./eng.traineddata ./codes.txt ./
+COPY ./Makefile ./eng.traineddata ./codes.txt ./download_and_run.sh ./
 
 COPY ./src ./src
 
