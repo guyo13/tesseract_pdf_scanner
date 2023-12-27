@@ -1,6 +1,6 @@
+#include <cstring>
 #include <iostream>
 #include <string>
-#include <cstring>
 
 char const* ALL_PAGES = "all";
 
@@ -14,8 +14,7 @@ int parse_page_range(char* range, int& start, int& stop, int max_page)
         if (strcmp(ALL_PAGES, rng.c_str()) == 0) {
             start = 1;
             stop = max_page;
-        }
-        else if (pos == std::string::npos) {
+        } else if (pos == std::string::npos) {
             int num = stoi(rng);
             stop = start = num;
         } else {
