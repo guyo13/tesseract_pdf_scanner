@@ -9,6 +9,6 @@ elif [ "$KEY" = "" ]; then
     echo "Missing key"
 else
     FILENAME=/tmp/`basename $KEY`
-    wget -O $FILENAME $URL && ./search_pdf "$FILENAME" codes.txt all `nproc`
+    wget -O $FILENAME $URL && ./search_pdf "$FILENAME" codes.txt all `nproc --all`
 fi
 
