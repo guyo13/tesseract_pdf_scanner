@@ -32,19 +32,19 @@ public:
     int worker_index;
     int start_page;
     int end_page;
-    json& result;
+    std::map<int, json>& results;
     char* keywords_path;
     char* pdf_path;
     WorkerStatus* status;
     WorkerArgs(int workerIndex, int page_number_start, int page_number_end,
-        int total_workers, json& result, char* keywordsPath, char* pdfPath,
-        WorkerStatus* status)
+        int total_workers, std::map<int, json>& results, char* keywordsPath,
+        char* pdfPath, WorkerStatus* status)
         : worker_index(workerIndex)
         , start_page(get_start_page_for_worker(
               workerIndex, page_number_start, page_number_end, total_workers))
         , end_page(get_end_page_for_worker(
               workerIndex, page_number_start, page_number_end, total_workers))
-        , result(result)
+        , results(results)
         , keywords_path(keywordsPath)
         , pdf_path(pdfPath)
         , status(status)
@@ -176,6 +176,7 @@ void* worker_process_page(void* _args)
 {
     auto* args = (WorkerArgs*)_args;
     WorkerStatus* status = args->status;
+    *status = Running;
     std::vector<std::string> keywords;
     std::string pdf_file(args->pdf_path);
     std::unique_ptr<poppler::document> doc(
@@ -200,8 +201,10 @@ void* worker_process_page(void* _args)
 
     for (int page_number = args->start_page; page_number <= args->end_page;
          page_number++) {
-        if (!process_page(
-                args->pdf_path, page_number, doc, args->result, keywords)) {
+        (args->results)[page_number] = json::object();
+
+        if (!process_page(args->pdf_path, page_number, doc,
+                std::ref(args->results[page_number]), keywords)) {
             *status = Fail;
             delete args;
             return nullptr;
@@ -262,14 +265,14 @@ int main(int argc, char** argv)
               << max_page << " pages long." << std::endl;
 
     std::vector<pthread_t> threads(num_threads, 0);
-    std::vector<json> thread_results;
+    std::vector<std::map<int, json> > thread_results;
     auto* statuses = new WorkerStatus[num_threads];
     if (statuses == nullptr) {
         panic();
     }
 
     for (int i = 0; i < num_threads; i++) {
-        thread_results.push_back(json::object());
+        thread_results.push_back(std::map<int, json>());
     }
 
     for (int i = 0; i < num_threads; i++) {
@@ -286,7 +289,9 @@ int main(int argc, char** argv)
 
     json all_pages_result = json::array();
     for (const auto& res : thread_results) {
-        all_pages_result.push_back(res);
+        for (const auto& page : res) {
+            all_pages_result.push_back(page.second);
+        }
     }
 
     int exit_status = 0;
