@@ -2,7 +2,7 @@ FROM public.ecr.aws/x9a3w9a8/amazon_linux_tesseract:latest
 
 ARG MAKE_TARGET=build
 
-RUN dnf install -y shadow-utils && adduser -m -s /bin/bash user
+RUN dnf install -y shadow-utils wget && adduser -m -s /bin/bash user
 
 USER user
 
