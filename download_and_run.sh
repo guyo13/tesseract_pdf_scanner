@@ -10,5 +10,6 @@ elif [ "$KEY" = "" ]; then
 else
     FILENAME=/tmp/`basename $KEY`
     wget -O $FILENAME $URL && ./search_pdf "$FILENAME" codes.txt all `nproc --all`
+    rm $FILENAME
 fi
 
