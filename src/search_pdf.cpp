@@ -252,17 +252,17 @@ int main(int argc, char** argv)
     int page_number_start, page_number_end, max_page;
     page_number_start = page_number_end = 1;
     max_page = doc->pages();
-    num_threads = std::min(num_threads, (long)max_page);
     if (max_page < 1
         || !parse_page_range(
             argv[3], page_number_start, page_number_end, max_page)) {
         return 1;
     }
+    long num_pages = page_number_end - page_number_start + 1;
+    num_threads = std::min(num_threads, num_pages);
 
-    std::cerr << "Using " << num_threads << " threads to process "
-              << page_number_end - page_number_start + 1 << " pages "
-              << page_number_start << "-" << page_number_end << ". Doc is "
-              << max_page << " pages long." << std::endl;
+    std::cerr << "Using " << num_threads << " threads to process " << num_pages
+              << " pages " << page_number_start << "-" << page_number_end
+              << ". Doc is " << max_page << " pages long." << std::endl;
 
     std::vector<pthread_t> threads(num_threads, 0);
     std::vector<std::map<int, json> > thread_results;
